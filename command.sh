@@ -1,0 +1,1 @@
+conda activate retinal_env && /opt/anaconda3/envs/retinal_env/bin/streamlit run app.py

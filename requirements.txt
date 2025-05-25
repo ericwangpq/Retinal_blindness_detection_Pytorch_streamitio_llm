@@ -1,0 +1,16 @@
+matplotlib
+notebook==6.4.12
+numpy==1.22.0
+pandas
+Pillow>=7.1.0
+python-dateutil==2.7.5
+python-decouple==3.1
+python-engineio==3.11.1
+python-slugify==3.0.4
+python-socketio==2.0.0
+scikit-learn
+torch==1.13.1
+torchvision
+requests
+streamlit
+pytorch-grad-cam
