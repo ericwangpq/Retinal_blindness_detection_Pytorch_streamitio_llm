@@ -8,7 +8,7 @@ import io
 # Import services
 from services.model_service import ModelService
 from services.visualization_service import VisualizationService
-from services.retinal_vqa import analyze_retinal_image_and_heatmap, answer_retinal_question
+from services.retinal_vqa import analyze_retinal_image_and_heatmap, answer_retinal_question, get_rag_service_info, search_medical_literature
 
 # Initialize services
 model_service = ModelService()
@@ -33,7 +33,7 @@ if 'qa_history' not in st.session_state:
     st.session_state.qa_history = []
 
 st.title("🔬 AI-Powered Diabetic Retinopathy Screening & Analysis")
-st.markdown("### Advanced screening tool with AI-powered visual question answering")
+st.markdown("### Advanced screening tool with AI-powered visual question answering and medical literature support")
 
 with st.sidebar:
     st.header("📋 Patient Information")
@@ -60,14 +60,38 @@ with st.sidebar:
     st.session_state.diabetes_duration = diabetes_duration
     
     st.divider()
+    
+    # RAG Knowledge Base Status
+    st.header("📚 Medical Knowledge Base")
+    rag_info = get_rag_service_info()
+    
+    if 'error' in rag_info:
+        st.error(f"⚠️ Knowledge base not available: {rag_info['error']}")
+    else:
+        total_vectors = rag_info.get('total_vectors', 0)
+        if total_vectors > 0:
+            st.success(f"✅ {total_vectors} medical documents indexed")
+            sources = rag_info.get('sources', [])
+            if sources:
+                st.caption(f"Sources: {len(sources)} medical papers")
+                with st.expander("View Sources"):
+                    for source in sources[:10]:  # Show first 10 sources
+                        st.write(f"• {source}")
+                    if len(sources) > 10:
+                        st.write(f"... and {len(sources) - 10} more")
+        else:
+            st.warning("⚠️ Knowledge base empty")
+    
+    st.divider()
     st.header("ℹ️ About")
     st.markdown("""
-    **Features:**
+    **Enhanced Features:**
     - AI-powered retinal image analysis
     - GradCAM visualization
-    - Expert AI explanations
-    - Interactive Q&A system
+    - Literature-supported AI explanations
+    - Interactive Q&A with medical evidence
     - Personalized recommendations
+    - Access to medical research database
     """)
 
 col1, col2 = st.columns(2)
@@ -75,15 +99,17 @@ with col1:
     st.subheader('🎯 Benefits')
     st.markdown('- Early detection of retinopathy')
     st.markdown('- Accessible screening in primary care')
-    st.markdown('- AI-powered explanations')
+    st.markdown('- Evidence-based AI explanations')
+    st.markdown('- Medical literature support')
     st.markdown('- Interactive patient education')
 
 with col2:
     st.subheader('⚙️ How It Works')
     st.markdown('1. Upload a retinal image')
     st.markdown('2. AI analyzes image & generates heatmap')
-    st.markdown('3. Get comprehensive AI explanation')
-    st.markdown('4. Ask questions about your results')
+    st.markdown('3. Get literature-supported AI explanation')
+    st.markdown('4. Ask evidence-based questions')
+    st.markdown('5. Search medical literature directly')
 
 st.header('📤 Upload Retinal Image')
 uploaded_file = st.file_uploader("Choose a retinal image...", type=["jpg", "jpeg", "png"])
@@ -110,8 +136,8 @@ if st.button("🔍 Analyze Image", type="primary"):
                 fig = visualization_service.generate_gradcam_visualization(model, uploaded_file)
                 st.session_state.heatmap_figure = fig
                 
-                # Get AI analysis of images
-                with st.spinner("🤖 AI is analyzing the images and heatmap..."):
+                # Get AI analysis of images with RAG enhancement
+                with st.spinner("🤖 AI is analyzing the images with medical literature support..."):
                     ai_analysis = analyze_retinal_image_and_heatmap(
                         st.session_state.original_image,
                         fig,
@@ -122,7 +148,7 @@ if st.button("🔍 Analyze Image", type="primary"):
                     st.session_state.ai_analysis = ai_analysis
                     st.session_state.analysis_complete = True
                 
-                st.success("✅ Analysis complete!")
+                st.success("✅ Analysis complete with medical literature support!")
                 
         except FileNotFoundError:
             st.error("❌ Model file 'classifier.pt' not found. Please ensure the model file is in the same directory.")
@@ -133,10 +159,10 @@ if st.button("🔍 Analyze Image", type="primary"):
 if st.session_state.analysis_complete:
     st.header("📊 Analysis Results")
     
-    tab1, tab2, tab3 = st.tabs(["🎯 AI Analysis", "📈 Technical Results", "🔥 Heatmap Visualization"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🎯 AI Analysis", "📈 Technical Results", "🔥 Heatmap Visualization", "📚 Literature Search"])
     
     with tab1:
-        st.subheader("🤖 Expert AI Analysis")
+        st.subheader("🤖 Evidence-Based AI Analysis")
         st.markdown(st.session_state.ai_analysis)
     
     with tab2:
@@ -173,9 +199,42 @@ if st.session_state.analysis_complete:
             st.pyplot(st.session_state.heatmap_figure)
             plt.close(st.session_state.heatmap_figure)
     
+    with tab4:
+        st.subheader("📚 Search Medical Literature")
+        st.markdown("*Search through the medical literature database for specific information about diabetic retinopathy.*")
+        
+        search_query = st.text_input(
+            "Search medical literature:",
+            placeholder="e.g., 'proliferative diabetic retinopathy treatment', 'retinal screening guidelines'",
+            key="literature_search"
+        )
+        
+        if st.button("🔍 Search Literature", key="search_lit_btn"):
+            if search_query.strip():
+                with st.spinner("🔍 Searching medical literature..."):
+                    search_results = search_medical_literature(search_query, k=5)
+                    
+                    if search_results and not any('error' in result for result in search_results):
+                        st.subheader("📑 Search Results")
+                        
+                        for i, result in enumerate(search_results):
+                            similarity_score = result.get('similarity_score', 0)
+                            source_file = result.get('source_file', 'Unknown')
+                            text = result.get('text', '')
+                            
+                            with st.expander(f"Result {i+1}: {source_file} (Similarity: {similarity_score:.2%})"):
+                                st.markdown(f"**Source:** {source_file}")
+                                st.markdown(f"**Relevance Score:** {similarity_score:.2%}")
+                                st.markdown("**Content:**")
+                                st.write(text[:500] + "..." if len(text) > 500 else text)
+                    else:
+                        st.warning("No relevant results found or search service unavailable.")
+            else:
+                st.warning("⚠️ Please enter a search query!")
+    
     # Interactive Q&A Section
     st.header("💬 Ask Questions About Your Results")
-    st.markdown("*Ask our AI expert any questions about your retinal analysis, diagnosis, or recommendations.*")
+    st.markdown("*Ask our AI expert any questions about your retinal analysis - now powered by medical literature for evidence-based answers.*")
     
     # Display previous Q&A history
     if st.session_state.qa_history:
@@ -194,7 +253,7 @@ if st.session_state.analysis_complete:
     
     if st.button("🤔 Ask AI Expert", type="secondary"):
         if user_question.strip():
-            with st.spinner("🤖 AI expert is thinking..."):
+            with st.spinner("🤖 AI expert is researching your question with medical literature..."):
                 try:
                     answer = answer_retinal_question(
                         user_question,
@@ -208,7 +267,7 @@ if st.session_state.analysis_complete:
                     st.session_state.qa_history.append((user_question, answer))
                     
                     # Display the answer
-                    st.subheader("🎯 AI Expert Response")
+                    st.subheader("🎯 Evidence-Based AI Expert Response")
                     st.markdown(answer)
                     
                     # Clear the input

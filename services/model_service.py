@@ -6,7 +6,6 @@ from torch.optim import lr_scheduler
 from PIL import Image
 import numpy as np
 
-
 class ModelService:
     """Service for handling model operations"""
     
@@ -56,7 +55,11 @@ class ModelService:
     def load_model(self, path):
         """Load trained model from checkpoint"""
         model, optimizer = self.init_model()
-        checkpoint = torch.load(path, map_location='cpu')
+        
+        # For PyTorch 2.6+ compatibility - use weights_only=False for trusted checkpoint
+        print("⚠️  Loading model checkpoint (trusted source)")
+        checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+        
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.model = model
