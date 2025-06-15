@@ -1,4 +1,4 @@
 .DS_Store
 classifier.pt
 config
-pycache
+__pycache__

@@ -118,8 +118,9 @@ if uploaded_file is not None:
     st.image(uploaded_file, caption='Uploaded Retinal Image', width=300)
     st.write("✅ Image successfully uploaded!")
     
-    # Store original image in session state
+    # Store original image and uploaded file in session state
     st.session_state.original_image = Image.open(uploaded_file).convert('RGB')
+    st.session_state.uploaded_file = uploaded_file
 
 if st.button("🔍 Analyze Image", type="primary"):
     if uploaded_file is None:
@@ -131,6 +132,9 @@ if st.button("🔍 Analyze Image", type="primary"):
                 model = model_service.load_model("classifier.pt")
                 results = model_service.predict_image(uploaded_file)
                 st.session_state.prediction_results = results
+                
+                # Store model in session state for multi-layer analysis
+                st.session_state.loaded_model = model
                 
                 # Generate heatmap
                 fig = visualization_service.generate_gradcam_visualization(model, uploaded_file)
@@ -193,11 +197,58 @@ if st.session_state.analysis_complete:
         st.info(f"{severity_colors[grade]} **Grade {grade}**: {severity_descriptions[grade]}")
     
     with tab3:
-        st.subheader("🔥 GradCAM Heatmap Analysis")
-        st.markdown("*This heatmap shows which areas of the retina the AI model focused on when making its prediction.*")
+        st.subheader("🔥 Enhanced GradCAM Heatmap Analysis")
+        st.markdown("*These improved heatmaps show which areas of the retina the AI model focused on for its prediction.*")
+        
+        # Add visualization options
+        viz_option = st.radio(
+            "Choose visualization type:",
+            ["Enhanced Standard View", "Multi-layer Analysis"],
+            key="viz_type"
+        )
+        
         if st.session_state.heatmap_figure:
-            st.pyplot(st.session_state.heatmap_figure)
-            plt.close(st.session_state.heatmap_figure)
+            if viz_option == "Enhanced Standard View":
+                st.markdown("**Standard Enhanced GradCAM** - Shows original image, pure heatmap, and overlay with applied improvements:")
+                st.pyplot(st.session_state.heatmap_figure)
+                plt.close(st.session_state.heatmap_figure)
+                
+
+            
+            elif viz_option == "Multi-layer Analysis":
+                st.markdown("**Multi-layer GradCAM Analysis** - Shows how different layers of the AI model focus on different features:")
+                
+                with st.spinner("🔄 Generating multi-layer analysis..."):
+                    try:
+                        # First try to get model from session state
+                        model = st.session_state.get('loaded_model', None)
+                        
+                        # If not available, try to reload it
+                        if model is None:
+                            try:
+                                model = model_service.load_model("classifier.pt")
+                                st.session_state.loaded_model = model
+                            except Exception as load_error:
+                                st.error(f"Failed to load model: {str(load_error)}")
+                                model = None
+                        
+                        if model is not None:
+                            multi_fig = visualization_service.generate_multi_layer_gradcam(model, st.session_state.uploaded_file)
+                            st.pyplot(multi_fig)
+                            plt.close(multi_fig)
+                            
+                            st.info("💡 **Interpretation Guide:**\n"
+                                   "- **Layer 2**: Low-level features (edges, textures)\n"
+                                   "- **Layer 3**: Mid-level features (shapes, patterns)\n"
+                                   "- **Layer 4**: High-level features (complex structures, pathological signs)")
+                        else:
+                            st.error("Model not available for multi-layer analysis")
+                    except Exception as e:
+                        st.error(f"Error generating multi-layer analysis: {str(e)}")
+                        # Fallback to standard view
+                        st.markdown("**Falling back to standard view:**")
+                        st.pyplot(st.session_state.heatmap_figure)
+                        plt.close(st.session_state.heatmap_figure)
     
     with tab4:
         st.subheader("📚 Search Medical Literature")
@@ -281,7 +332,7 @@ if st.session_state.analysis_complete:
 if st.button("🔄 Reset Analysis"):
     # Clear all session state
     for key in ['analysis_complete', 'ai_analysis', 'prediction_results', 
-                'original_image', 'heatmap_figure', 'qa_history']:
+                'original_image', 'heatmap_figure', 'qa_history', 'uploaded_file', 'loaded_model']:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
